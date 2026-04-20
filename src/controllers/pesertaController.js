@@ -1,0 +1,112 @@
+import prisma from '../utils/prisma.js';
+import { getGameState } from '../sockets/gameHandler.js';
+
+export const pesertaController = {
+    getSoalAktif: async (req, res) => {
+        try {
+            const timId = req.user.id;
+            const tim = await prisma.tim.findUnique({ where: { id: timId } });
+
+            const soalAktif = await prisma.soal.findFirst({
+                where: { status: 'aktif' },
+                select: { id: true, pertanyaan: true, gambar: true, opsiJawaban: true, waktuMulai: true, paketSoal: true }
+            });
+
+            const gameState = getGameState();
+
+            if (!soalAktif || soalAktif.paketSoal.sesi !== tim.sesi) {
+                return res.status(200).json({
+                    success: true,
+                    message: !soalAktif && gameState.faseAktif === 'menunggu'
+                        ? "Waktu habis, menunggu soal berikutnya..."
+                        : "Belum ada soal dimulai untuk sesi Anda.",
+                    data: null,
+                    faseAktif: gameState.faseAktif
+                });
+            }
+
+            const riwayat = await prisma.riwayatJawaban.findFirst({
+                where: { timId: timId, soalId: soalAktif.id }
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    id: soalAktif.id,
+                    pertanyaan: soalAktif.pertanyaan,
+                    gambar: soalAktif.gambar,
+                    opsiJawaban: soalAktif.opsiJawaban,
+                    waktuMulai: soalAktif.waktuMulai
+                },
+                sisaWaktuDetik: gameState.sisaWaktu,
+                sudahMenjawab: !!riwayat,
+                faseAktif: gameState.faseAktif
+            });
+
+        } catch (error) {
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    submitJawaban: async (req, res) => {
+        try {
+            const timId = req.user.id;
+            const { soalId, jawabanTim } = req.body;
+
+            const gameState = getGameState();
+            if (gameState.sisaWaktu <= 0 || gameState.faseAktif !== 'soal') {
+                return res.status(400).json({ success: false, message: "Waktu habis atau soal ditutup." });
+            }
+
+            const tim = await prisma.tim.findUnique({ where: { id: timId } });
+            if (!tim) return res.status(404).json({ success: false, message: "Tim tidak ditemukan" });
+
+            const soal = await prisma.soal.findUnique({
+                where: { id: parseInt(soalId) },
+                include: { paketSoal: true }
+            });
+
+            if (!soal || soal.status !== 'aktif') return res.status(400).json({ success: false, message: "Soal tidak aktif!" });
+
+            if (tim.sesi !== soal.paketSoal.sesi) {
+                return res.status(403).json({ success: false, message: "Anda tidak bisa menjawab soal dari sesi lain!" });
+            }
+
+            const cekRiwayat = await prisma.riwayatJawaban.findFirst({ where: { timId: timId, soalId: soal.id } });
+            if (cekRiwayat) return res.status(400).json({ success: false, message: "Anda sudah menjawab!" });
+
+            const isBenar = jawabanTim.toString().trim().toLowerCase() === soal.jawabanBenar.trim().toLowerCase();
+            let poinDidapat = 0;
+
+            if (isBenar) {
+                const urutanBenarRegional = await prisma.riwayatJawaban.count({
+                    where: {
+                        soalId: soal.id,
+                        isBenar: true,
+                        tim: { wilayah: tim.wilayah }
+                    }
+                });
+
+                const poinPeringkat = [25, 23, 21, 19, 17, 14, 12, 10, 8, 6, 4, 2];
+                poinDidapat = poinPeringkat[urutanBenarRegional] !== undefined ? poinPeringkat[urutanBenarRegional] : 2;
+            }
+
+            await prisma.$transaction(async (tx) => {
+                await tx.riwayatJawaban.create({
+                    data: { timId, soalId: soal.id, jawabanTim: jawabanTim.toString(), isBenar, poinDidapat }
+                });
+
+                if (poinDidapat > 0) {
+                    await tx.tim.update({
+                        where: { id: timId },
+                        data: { totalPoin: { increment: poinDidapat } }
+                    });
+                }
+            });
+
+            return res.status(200).json({ success: true, data: { isBenar, poinDidapat } });
+        } catch (error) {
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    }
+};

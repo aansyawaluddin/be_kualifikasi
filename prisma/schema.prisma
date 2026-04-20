@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  peserta
+}
+
+enum StatusSoal {
+  belum     
+  aktif     
+  selesai  
+}
+
+model Tim {
+  id           Int      @id @default(autoincrement())
+  nama         String   @unique
+  username     String   @unique
+  password     String   
+  role         Role     @default(peserta)
+  
+  wilayah      String   @default("Makassar") 
+  sesi         Int      @default(1)
+  
+  status       String   @default("kualifikasi")
+  totalPoin    Int      @default(0)
+
+  isLoggedIn   Boolean  @default(false)
+  ipAddress    String?
+  lastLogin    DateTime?
+  
+  riwayat      RiwayatJawaban[]
+}
+
+model PaketSoal {
+  id         Int      @id @default(autoincrement())
+  nama       String
+  sesi       Int      @default(1) 
+  daftarSoal Soal[]   
+}
+
+model Soal {
+  id           Int        @id @default(autoincrement())
+  kategori     String
+  tipe         String
+  gambar       String?
+  pertanyaan   String     @db.Text
+  opsiJawaban  Json?      
+  jawabanBenar String     @db.Text
+  
+  status       StatusSoal @default(belum)
+  waktuMulai   DateTime?  
+  
+  paketSoalId  Int
+  paketSoal    PaketSoal  @relation(fields: [paketSoalId], references: [id], onDelete: Cascade)
+
+  riwayat      RiwayatJawaban[]
+}
+
+model RiwayatJawaban {
+  id            Int      @id @default(autoincrement())
+  timId         Int
+  soalId        Int
+  
+  jawabanTim    String   @db.Text 
+  isBenar       Boolean            
+  poinDidapat   Int      
+  waktuMenjawab DateTime @default(now()) 
+
+  tim           Tim      @relation(fields: [timId], references: [id], onDelete: Cascade)
+  soal          Soal     @relation(fields: [soalId], references: [id], onDelete: Cascade)
+  
+  @@unique([timId, soalId])
+}

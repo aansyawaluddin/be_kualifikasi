@@ -6,20 +6,28 @@ export const pesertaController = {
         try {
             const timId = req.user.id;
             const tim = await prisma.tim.findUnique({ where: { id: timId } });
-
-            const soalAktif = await prisma.soal.findFirst({
-                where: { status: 'aktif' },
-                select: { id: true, pertanyaan: true, gambar: true, opsiJawaban: true, waktuMulai: true, paketSoal: true }
-            });
-
             const gameState = getGameState();
+
+            let soalAktif = null;
+
+            if (gameState.soalAktifId) {
+                soalAktif = await prisma.soal.findUnique({
+                    where: { id: gameState.soalAktifId },
+                    select: {
+                        id: true,
+                        pertanyaan: true,
+                        gambar: true,
+                        opsiJawaban: true,
+                        waktuMulai: true,
+                        paketSoal: true
+                    }
+                });
+            }
 
             if (!soalAktif || soalAktif.paketSoal.sesi !== tim.sesi) {
                 return res.status(200).json({
                     success: true,
-                    message: !soalAktif && gameState.faseAktif === 'menunggu'
-                        ? "Waktu habis, menunggu soal berikutnya..."
-                        : "Belum ada soal dimulai untuk sesi Anda.",
+                    message: "Belum ada soal dimulai untuk sesi Anda.",
                     data: null,
                     faseAktif: gameState.faseAktif
                 });

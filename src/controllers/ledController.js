@@ -97,5 +97,81 @@ export const ledController = {
             console.error("Error Get LED Live Game:", error);
             return res.status(500).json({ success: false, error: error.message });
         }
+    },
+
+    getFinalLeaderboard: async (req, res) => {
+        try {
+            const { sesi } = req.query;
+            const whereClause = { role: 'peserta' };
+            if (sesi) whereClause.sesi = parseInt(sesi);
+
+            const daftarTim = await prisma.tim.findMany({
+                where: whereClause,
+                select: {
+                    id: true,
+                    nama: true,
+                    totalPoin: true,
+                    wilayah: true,
+                    status: true,
+                    riwayat: {
+                        where: { isBenar: true }, 
+                        select: {
+                            waktuMenjawab: true,
+                            soal: { select: { waktuMulai: true } }
+                        }
+                    }
+                }
+            });
+
+            const timDenganWaktu = daftarTim.map(tim => {
+                let totalWaktu = 0;
+
+                tim.riwayat.forEach(r => {
+                    if (r.soal && r.soal.waktuMulai) {
+                        const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
+                        totalWaktu += durasi;
+                    }
+                });
+
+                const { riwayat, ...timData } = tim;
+
+                return {
+                    ...timData,
+                    totalWaktu
+                };
+            });
+
+            timDenganWaktu.sort((a, b) => {
+                if (b.totalPoin !== a.totalPoin) {
+                    return b.totalPoin - a.totalPoin; 
+                }
+                return a.totalWaktu - b.totalWaktu; 
+            });
+
+            const rankedData = timDenganWaktu.map((tim, index) => ({
+                rank: index + 1,
+                ...tim
+            }));
+
+            const leaderboardPerWilayah = {};
+            rankedData.forEach(tim => {
+                if (!leaderboardPerWilayah[tim.wilayah]) {
+                    leaderboardPerWilayah[tim.wilayah] = [];
+                }
+                leaderboardPerWilayah[tim.wilayah].push(tim);
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    overall: rankedData,
+                    perWilayah: leaderboardPerWilayah
+                }
+            });
+
+        } catch (error) {
+            console.error("Error Get Final Leaderboard:", error);
+            return res.status(500).json({ success: false, error: error.message });
+        }
     }
 };

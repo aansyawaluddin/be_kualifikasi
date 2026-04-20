@@ -87,7 +87,8 @@ export const pesertaController = {
                     }
                 });
 
-                const poinPeringkat = [25, 23, 21, 19, 17, 14, 12, 10, 8, 6, 4, 2];
+                const poinPeringkat = [25, 15, 10, 5];
+
                 poinDidapat = poinPeringkat[urutanBenarRegional] !== undefined ? poinPeringkat[urutanBenarRegional] : 2;
             }
 

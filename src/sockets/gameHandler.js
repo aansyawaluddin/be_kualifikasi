@@ -82,7 +82,6 @@ export const gameSocketHandler = (io) => {
     io.on('connection', (socket) => {
         console.log(`[SOCKET] User connected: ${socket.id}`);
 
-        // Kirim status game saat ini ke user yang baru join
         socket.emit('game_state', getGameState());
 
         socket.on('disconnect', () => {

@@ -117,5 +117,71 @@ export const pesertaController = {
         } catch (error) {
             return res.status(500).json({ success: false, error: error.message });
         }
+    },
+
+    getLeaderboardPeserta: async (req, res) => {
+        try {
+            const timId = req.user.id;
+            const myTim = await prisma.tim.findUnique({ where: { id: timId } });
+
+            if (!myTim) return res.status(404).json({ success: false, message: "Tim tidak ditemukan" });
+
+            const daftarTim = await prisma.tim.findMany({
+                where: { role: 'peserta', sesi: myTim.sesi, wilayah: myTim.wilayah },
+                select: {
+                    id: true,
+                    nama: true,
+                    totalPoin: true,
+                    wilayah: true,
+                    status: true,
+                    riwayat: {
+                        where: { isBenar: true },
+                        select: {
+                            waktuMenjawab: true,
+                            soal: { select: { waktuMulai: true } }
+                        }
+                    }
+                }
+            });
+
+            const timDenganWaktu = daftarTim.map(tim => {
+                let totalWaktu = 0;
+                tim.riwayat.forEach(r => {
+                    if (r.soal && r.soal.waktuMulai) {
+                        const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
+                        totalWaktu += durasi;
+                    }
+                });
+
+                const { riwayat, ...timData } = tim;
+                return { ...timData, totalWaktu };
+            });
+
+            timDenganWaktu.sort((a, b) => {
+                if (b.totalPoin !== a.totalPoin) {
+                    return b.totalPoin - a.totalPoin;
+                }
+                return a.totalWaktu - b.totalWaktu;
+            });
+
+            const rankedData = timDenganWaktu.map((tim, index) => ({
+                rank: index + 1,
+                ...tim
+            }));
+
+            const timSaya = rankedData.find(t => t.id === timId);
+            const timLainnya = rankedData.filter(t => t.id !== timId);
+
+            const finalLeaderboard = [timSaya, ...timLainnya];
+
+            return res.status(200).json({
+                success: true,
+                data: finalLeaderboard
+            });
+
+        } catch (error) {
+            console.error("Error Get Leaderboard Peserta:", error);
+            return res.status(500).json({ success: false, error: error.message });
+        }
     }
 };

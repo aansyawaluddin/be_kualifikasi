@@ -6,5 +6,6 @@ const router = express.Router();
 
 router.get('/soal-aktif', verifyToken, pesertaController.getSoalAktif);
 router.post('/submit-jawaban', verifyToken, pesertaController.submitJawaban);
+router.get('/leaderboard', verifyToken, pesertaController.getLeaderboardPeserta);
 
 export default router;

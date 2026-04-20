@@ -23,7 +23,7 @@ export const adminController = {
                 select: {
                     id: true,
                     pertanyaan: true,
-                    tipe: true 
+                    tipe: true
                 }
             });
             return res.status(200).json({ success: true, data: soal });
@@ -35,9 +35,28 @@ export const adminController = {
     startKualifikasi: async (req, res) => {
         try {
             const { paketId } = req.params;
-            const io = req.app.get('io');
 
+            const paket = await prisma.paketSoal.findUnique({
+                where: { id: parseInt(paketId) }
+            });
+
+            if (!paket) {
+                return res.status(404).json({ success: false, message: "Paket soal tidak ditemukan!" });
+            }
+            if (paket.status === 'selesai') {
+                return res.status(403).json({
+                    success: false,
+                    message: "Akses Ditolak! Sesi ini sudah selesai dan tidak bisa dimulai ulang."
+                });
+            }
+
+            const io = req.app.get('io');
             await mulaiKualifikasi(io, paketId);
+
+            await prisma.paketSoal.update({
+                where: { id: parseInt(paketId) },
+                data: { status: 'berjalan' }
+            });
 
             return res.status(200).json({ success: true, message: "Babak Kualifikasi Dimulai!" });
         } catch (error) {
@@ -97,6 +116,39 @@ export const adminController = {
                 }
             });
         } catch (error) {
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    selesaiKualifikasi: async (req, res) => {
+        try {
+            const { paketId } = req.params;
+            const io = req.app.get('io');
+
+            await prisma.paketSoal.update({
+                where: { id: parseInt(paketId) },
+                data: { status: 'selesai' }
+            });
+
+            const gameState = getGameState();
+            if (gameState.paketAktifId == paketId) {
+                gameState.paketAktifId = null;
+                gameState.soalAktifId = null;
+                gameState.faseAktif = 'idle';
+                gameState.sisaWaktu = 0;
+            }
+
+            if (io) {
+                io.emit('sesi_selesai', { message: `Sesi Kualifikasi telah resmi ditutup!` });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Sesi kualifikasi berhasil ditutup secara permanen!"
+            });
+
+        } catch (error) {
+            console.error("Error Selesai Kualifikasi:", error);
             return res.status(500).json({ success: false, error: error.message });
         }
     },

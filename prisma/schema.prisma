@@ -41,7 +41,8 @@ model Tim {
 model PaketSoal {
   id         Int      @id @default(autoincrement())
   nama       String
-  sesi       Int      @default(1) 
+  sesi       Int      @default(1)
+  status     String   @default("belum_mulai")
   daftarSoal Soal[]   
 }
 

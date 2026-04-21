@@ -24,6 +24,8 @@ model Tim {
   username     String   @unique
   password     String   
   role         Role     @default(peserta)
+
+  foto         String?
   
   wilayah      String   @default("Makassar") 
   sesi         Int      @default(1)

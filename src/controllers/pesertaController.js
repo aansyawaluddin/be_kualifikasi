@@ -2,6 +2,35 @@ import prisma from '../utils/prisma.js';
 import { getGameState } from '../sockets/gameHandler.js';
 
 export const pesertaController = {
+
+    getInformasiTim: async (req, res) => {
+        try {
+            const timId = req.user.id;
+
+            const tim = await prisma.tim.findUnique({
+                where: { id: timId },
+                select: {
+                    foto: true,
+                    nama: true,
+                    wilayah: true
+                }
+            });
+
+            if (!tim) {
+                return res.status(404).json({ success: false, message: "Tim tidak ditemukan!" });
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: tim
+            });
+
+        } catch (error) {
+            console.error("Error Get Informasi Tim:", error);
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
     getSoalAktif: async (req, res) => {
         try {
             const timId = req.user.id;
@@ -99,7 +128,7 @@ export const pesertaController = {
                     }
                 });
 
-                const poinPeringkat = [25, 15, 10, 5];
+                const poinPeringkat = [20, 15, 10, 5];
 
                 poinDidapat = poinPeringkat[urutanBenarRegional] !== undefined ? poinPeringkat[urutanBenarRegional] : 2;
             }

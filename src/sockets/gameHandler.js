@@ -23,9 +23,15 @@ export const mulaiKualifikasi = async (io, paketId) => {
         });
 
         if (!soalBerikutnya) {
-            console.log(`[GAME] Paket Kualifikasi ${paketId} Selesai.`);
+            console.log(`[GAME] Paket Kualifikasi ID ${paketId} Selesai.`);
             faseAktif = 'selesai';
-            io.emit('kualifikasi_selesai', { message: "Seluruh soal sesi ini telah selesai! Menunggu proses Cut-off dari Admin." });
+
+            soalAktifId = null;
+            sisaWaktu = 0;
+
+            io.emit('kualifikasi_selesai', {
+                message: "Seluruh soal pada sesi ini telah selesai! Menunggu proses Cut-off dari Admin."
+            });
             return null;
         }
 
@@ -39,15 +45,24 @@ export const mulaiKualifikasi = async (io, paketId) => {
         faseAktif = 'soal';
 
         io.emit('game_mulai', { soalId: soalAktifId, sisaWaktu, faseAktif });
-        console.log(`[GAME] Menjalankan Soal ID: ${soalAktifId}`);
+        console.log(`[GAME] Menjalankan Soal ID: ${soalAktifId} | Durasi: ${DURASI} detik`);
 
-        if (timerInterval) clearInterval(timerInterval);
+        if (timerInterval) {
+            clearInterval(timerInterval);
+        }
+
+        // Hitung target waktu selesai secara absolut
+        const waktuTarget = Date.now() + (DURASI * 1000);
 
         timerInterval = setInterval(async () => {
-            sisaWaktu--;
+            const waktuSekarang = Date.now();
+
+            sisaWaktu = Math.max(0, Math.round((waktuTarget - waktuSekarang) / 1000));
+
             io.emit('timer_update', { sisaWaktu });
 
             if (sisaWaktu <= 0) {
+                // Hentikan timer
                 clearInterval(timerInterval);
 
                 await prisma.soal.update({
@@ -58,25 +73,37 @@ export const mulaiKualifikasi = async (io, paketId) => {
                 faseAktif = 'menunggu';
 
                 io.emit('waktu_habis', { soalId: soalAktifId, faseAktif });
-                console.log(`[GAME] Waktu Habis. Menunggu Admin klik Selanjutnya...`);
+                console.log(`[GAME] Waktu Habis (Soal ID: ${soalAktifId}). Menunggu Admin klik Selanjutnya...`);
             }
         }, 1000);
 
         return soalAktif;
+
     } catch (error) {
-        console.error("[ERROR SIKLUS]:", error);
+        console.error("[ERROR SIKLUS GAME]:", error);
         return null;
     }
 };
 
 export const lanjutSoalBerikutnya = async (io) => {
-    if (!paketAktifId) throw new Error("Tidak ada paket kualifikasi yang aktif.");
-    if (faseAktif === 'soal') throw new Error("Waktu soal saat ini belum habis!");
+    if (!paketAktifId) {
+        throw new Error("Tidak ada paket kualifikasi yang aktif saat ini.");
+    }
+    if (faseAktif === 'soal') {
+        throw new Error("Waktu soal saat ini belum habis! Tunggu timer selesai untuk lanjut.");
+    }
 
     return await mulaiKualifikasi(io, paketAktifId);
 };
 
-export const getGameState = () => ({ sisaWaktu, soalAktifId, paketAktifId, faseAktif });
+export const getGameState = () => {
+    return {
+        sisaWaktu,
+        soalAktifId,
+        paketAktifId,
+        faseAktif
+    };
+};
 
 export const gameSocketHandler = (io) => {
     io.on('connection', (socket) => {

@@ -3,6 +3,9 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path'; 
+import { fileURLToPath } from 'url'; 
+
 import { gameSocketHandler } from './sockets/gameHandler.js';
 
 import authRoutes from './routes/authRoutes.js';
@@ -11,6 +14,9 @@ import pesertaRoutes from './routes/pesertaRoutes.js';
 import ledRoutes from './routes/ledRoutes.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -30,7 +36,7 @@ app.set('io', io);
 
 gameSocketHandler(io);
 
-app.use('/uploads', express.static('public/uploads'));
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);

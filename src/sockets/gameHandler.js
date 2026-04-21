@@ -116,3 +116,12 @@ export const gameSocketHandler = (io) => {
         });
     });
 };
+
+export const resetGameState = () => {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+    sisaWaktu = 0;
+    soalAktifId = null;
+    paketAktifId = null;
+    faseAktif = 'idle';
+};

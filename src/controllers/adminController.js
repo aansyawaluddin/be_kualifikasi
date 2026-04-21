@@ -1,5 +1,5 @@
 import prisma from '../utils/prisma.js';
-import { mulaiKualifikasi, lanjutSoalBerikutnya, getGameState } from '../sockets/gameHandler.js';
+import { mulaiKualifikasi, lanjutSoalBerikutnya, getGameState, resetGameState } from '../sockets/gameHandler.js';
 
 export const adminController = {
 
@@ -130,13 +130,7 @@ export const adminController = {
                 data: { status: 'selesai' }
             });
 
-            const gameState = getGameState();
-            if (gameState.paketAktifId == paketId) {
-                gameState.paketAktifId = null;
-                gameState.soalAktifId = null;
-                gameState.faseAktif = 'idle';
-                gameState.sisaWaktu = 0;
-            }
+            resetGameState();
 
             if (io) {
                 io.emit('sesi_selesai', { message: `Sesi Kualifikasi telah resmi ditutup!` });

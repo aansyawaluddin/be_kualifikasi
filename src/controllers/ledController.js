@@ -102,8 +102,26 @@ export const ledController = {
     getFinalLeaderboard: async (req, res) => {
         try {
             const { sesi } = req.query;
-            const whereClause = { role: 'peserta' };
-            if (sesi) whereClause.sesi = parseInt(sesi);
+            let sesiTarget = 1;
+
+            if (sesi) {
+                sesiTarget = parseInt(sesi);
+            } else {
+                const gameState = getGameState();
+                if (gameState.paketAktifId) {
+                    const paket = await prisma.paketSoal.findUnique({
+                        where: { id: parseInt(gameState.paketAktifId) }
+                    });
+                    if (paket) {
+                        sesiTarget = paket.sesi;
+                    }
+                }
+            }
+
+            const whereClause = {
+                role: 'peserta',
+                sesi: sesiTarget
+            };
 
             const daftarTim = await prisma.tim.findMany({
                 where: whereClause,
@@ -114,7 +132,7 @@ export const ledController = {
                     wilayah: true,
                     status: true,
                     riwayat: {
-                        where: { isBenar: true }, 
+                        where: { isBenar: true },
                         select: {
                             waktuMenjawab: true,
                             soal: { select: { waktuMulai: true } }
@@ -143,9 +161,9 @@ export const ledController = {
 
             timDenganWaktu.sort((a, b) => {
                 if (b.totalPoin !== a.totalPoin) {
-                    return b.totalPoin - a.totalPoin; 
+                    return b.totalPoin - a.totalPoin;
                 }
-                return a.totalWaktu - b.totalWaktu; 
+                return a.totalWaktu - b.totalWaktu;
             });
 
             const rankedData = timDenganWaktu.map((tim, index) => ({
@@ -164,6 +182,7 @@ export const ledController = {
             return res.status(200).json({
                 success: true,
                 data: {
+                    sesiAktif: sesiTarget,
                     overall: rankedData,
                     perWilayah: leaderboardPerWilayah
                 }

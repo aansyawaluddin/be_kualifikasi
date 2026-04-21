@@ -15,6 +15,8 @@ export const pesertaController = {
                     where: { id: gameState.soalAktifId },
                     select: {
                         id: true,
+                        tipe: true,
+                        kategori: true,
                         pertanyaan: true,
                         gambar: true,
                         opsiJawaban: true,
@@ -41,6 +43,8 @@ export const pesertaController = {
                 success: true,
                 data: {
                     id: soalAktif.id,
+                    tipeSoal: soalAktif.tipe,
+                    kategori: soalAktif.kategori,
                     pertanyaan: soalAktif.pertanyaan,
                     gambar: soalAktif.gambar,
                     opsiJawaban: soalAktif.opsiJawaban,

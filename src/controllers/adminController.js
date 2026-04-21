@@ -232,5 +232,56 @@ export const adminController = {
         } catch (error) {
             return res.status(500).json({ success: false, error: error.message });
         }
+    },
+
+    resetKualifikasi: async (req, res) => {
+        try {
+            const { paketId } = req.params;
+            const io = req.app.get('io');
+
+            const paket = await prisma.paketSoal.findUnique({
+                where: { id: parseInt(paketId) }
+            });
+
+            if (!paket) {
+                return res.status(404).json({ success: false, message: "Paket soal tidak ditemukan!" });
+            }
+
+            const sesiTarget = paket.sesi;
+
+            await prisma.$transaction(async (tx) => {
+                await tx.riwayatJawaban.deleteMany({
+                    where: { soal: { paketSoalId: parseInt(paketId) } }
+                });
+
+                await tx.soal.updateMany({
+                    where: { paketSoalId: parseInt(paketId) },
+                    data: { status: 'belum', waktuMulai: null }
+                });
+
+                await tx.tim.updateMany({
+                    where: { sesi: sesiTarget, role: 'peserta' },
+                    data: { totalPoin: 0, status: 'kualifikasi' }
+                });
+
+                await tx.paketSoal.update({
+                    where: { id: parseInt(paketId) },
+                    data: { status: 'belum_mulai' }
+                });
+            });
+
+            if (io) {
+                io.emit('sesi_selesai', { message: `Sesi ${sesiTarget} sedang di-reset oleh Admin...` });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: `Testing Reset Berhasil: Sesi ${sesiTarget} bersih! Poin, soal, dan riwayat jawaban telah dikembalikan seperti semula.`
+            });
+
+        } catch (error) {
+            console.error("Error Reset Kualifikasi:", error);
+            return res.status(500).json({ success: false, error: error.message });
+        }
     }
 };

@@ -15,4 +15,6 @@ router.get('/kualifikasi/dashboard-live', adminController.getDashboardLive);
 router.post('/kualifikasi/selesai/:paketId', adminController.selesaiKualifikasi);
 router.post('/kualifikasi/eksekusi-cutoff', adminController.eksekusiCutOff);
 
+router.post('/kualifikasi/reset/:paketId', adminController.resetKualifikasi);
+
 export default router;

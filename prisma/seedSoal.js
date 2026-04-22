@@ -22,7 +22,8 @@ async function main() {
         });
     }
 
-    const soalKualifikasi = [
+    // 1. Buat 30 Soal Utama (Ditugaskan ke Sesi 1 dulu)
+    const soalSesi1 = [
         // ==========================================
         // BAHASA INDONESIA
         // ==========================================
@@ -105,6 +106,13 @@ async function main() {
         p(1, "pengetahuan_kuantitatif", "Jika sekarang pukul 08.30, maka 2 jam 45 menit kemudian adalah …", ["A. 10.45", "B. 11.00", "C. 11.15", "D. 11.30", "E. 11.45"], "C"),
         p(1, "pengetahuan_kuantitatif", "Dalam sebuah kotak terdapat 4 bola merah, 3 bola biru, dan 3 bola hijau. Peluang terambil bola bukan merah adalah …", ["A. 3/10", "B. 4/10", "C. 6/10", "D. 7/10", "E. 8/10"], "C")
     ];
+
+    // 2. Duplikasi otomatis untuk Sesi 2 dan Sesi 3 (Mengubah paketSoalId)
+    const soalSesi2 = soalSesi1.map(soal => ({ ...soal, paketSoalId: 2 }));
+    const soalSesi3 = soalSesi1.map(soal => ({ ...soal, paketSoalId: 3 }));
+
+    // 3. Gabungkan semuanya menjadi satu array besar (Total 90 Soal)
+    const soalKualifikasi = [...soalSesi1, ...soalSesi2, ...soalSesi3];
 
     await prisma.riwayatJawaban.deleteMany({});
     await prisma.soal.deleteMany({});

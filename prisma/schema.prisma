@@ -12,6 +12,20 @@ enum Role {
   peserta
 }
 
+enum KategoriSoal {
+  bahasa_indonesia
+  bahasa_inggris
+  matematika
+  ilmu_pengetahuan_alam
+  pendidikan_kewarganegaraan
+  geografi
+  sejarah
+  sosiologi
+  ekonomi
+  penalaran_umum
+  pengetahuan_kuantitatif
+}
+
 enum StatusSoal {
   belum     
   aktif     

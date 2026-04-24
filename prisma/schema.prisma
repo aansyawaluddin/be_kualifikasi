@@ -24,6 +24,7 @@ enum KategoriSoal {
   ekonomi
   penalaran_umum
   pengetahuan_kuantitatif
+  pendidikan_agama
 }
 
 enum StatusSoal {

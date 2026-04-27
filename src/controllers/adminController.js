@@ -92,17 +92,46 @@ export const adminController = {
 
             const daftarTim = await prisma.tim.findMany({
                 where: { role: 'peserta', sesi: sesiAktif },
-                select: { id: true, nama: true, totalPoin: true, wilayah: true }
+                select: {
+                    id: true,
+                    nama: true,
+                    totalPoin: true,
+                    wilayah: true,
+                    riwayat: {
+                        where: { isBenar: true },
+                        select: {
+                            waktuMenjawab: true,
+                            soal: { select: { waktuMulai: true } }
+                        }
+                    }
+                }
             });
 
             const leaderboardPerWilayah = {};
+
             daftarTim.forEach(tim => {
+                let totalWaktu = 0;
+                tim.riwayat.forEach(r => {
+                    if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
+                        const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
+                        totalWaktu += durasi;
+                    }
+                });
+
                 if (!leaderboardPerWilayah[tim.wilayah]) leaderboardPerWilayah[tim.wilayah] = [];
-                leaderboardPerWilayah[tim.wilayah].push(tim);
+                leaderboardPerWilayah[tim.wilayah].push({
+                    id: tim.id,
+                    nama: tim.nama,
+                    totalPoin: tim.totalPoin,
+                    totalWaktu: totalWaktu
+                });
             });
 
             for (const wilayah in leaderboardPerWilayah) {
-                leaderboardPerWilayah[wilayah].sort((a, b) => b.totalPoin - a.totalPoin);
+                leaderboardPerWilayah[wilayah].sort((a, b) => {
+                    if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin; 
+                    return a.totalWaktu - b.totalWaktu; 
+                });
             }
 
             return res.status(200).json({

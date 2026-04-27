@@ -180,7 +180,7 @@ export const pesertaController = {
             const timDenganWaktu = daftarTim.map(tim => {
                 let totalWaktu = 0;
                 tim.riwayat.forEach(r => {
-                    if (r.soal && r.soal.waktuMulai) {
+                    if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
                         const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
                         totalWaktu += durasi;
                     }

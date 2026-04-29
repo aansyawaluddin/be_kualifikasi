@@ -123,14 +123,15 @@ export const adminController = {
                     id: tim.id,
                     nama: tim.nama,
                     totalPoin: tim.totalPoin,
-                    totalWaktu: totalWaktu
+                    totalWaktu: totalWaktu,
+                    wilayah: tim.wilayah
                 });
             });
 
             for (const wilayah in leaderboardPerWilayah) {
                 leaderboardPerWilayah[wilayah].sort((a, b) => {
-                    if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin; 
-                    return a.totalWaktu - b.totalWaktu; 
+                    if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin;
+                    return a.totalWaktu - b.totalWaktu;
                 });
             }
 

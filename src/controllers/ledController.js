@@ -180,13 +180,11 @@ export const ledController = {
                 ...tim
             }));
 
-            const klasemenTop10 = rankedData.slice(0, 10);
-
             return res.status(200).json({
                 success: true,
                 data: {
                     sesiAktif: sesiTarget,
-                    klasemen: klasemenTop10
+                    klasemen: rankedData
                 }
             });
 

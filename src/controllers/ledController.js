@@ -93,6 +93,8 @@ export const ledController = {
                 return a.totalWaktu - b.totalWaktu;
             });
 
+            const klasemenTop10 = klasemen.slice(0, 10);
+
             return res.status(200).json({
                 success: true,
                 data: {
@@ -101,7 +103,7 @@ export const ledController = {
                     faseAktif: gameState.faseAktif,
                     sisaWaktuDetik: gameState.sisaWaktu,
                     soalAktif: soalAktif,
-                    timBertanding: klasemen
+                    timBertanding: klasemenTop10
                 }
             });
 
@@ -178,11 +180,13 @@ export const ledController = {
                 ...tim
             }));
 
+            const klasemenTop10 = rankedData.slice(0, 10);
+
             return res.status(200).json({
                 success: true,
                 data: {
                     sesiAktif: sesiTarget,
-                    klasemen: rankedData
+                    klasemen: klasemenTop10
                 }
             });
 

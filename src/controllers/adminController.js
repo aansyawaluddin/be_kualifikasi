@@ -130,6 +130,15 @@ export const adminController = {
                 return a.totalWaktu - b.totalWaktu;
             });
 
+            const klasemenTop10 = klasemen.slice(0, 10);
+
+            let sudahMenjawab = 0;
+            if (gameState.soalAktifId) {
+                sudahMenjawab = await prisma.riwayatJawaban.count({
+                    where: { soalId: gameState.soalAktifId }
+                });
+            }
+
             return res.status(200).json({
                 success: true,
                 data: {
@@ -137,7 +146,11 @@ export const adminController = {
                     faseAktif: gameState.faseAktif,
                     sisaWaktuDetik: gameState.sisaWaktu,
                     soalAktif: soalAktif,
-                    leaderboard: klasemen
+                    progresMenjawab: {
+                        sudahMenjawab: sudahMenjawab,
+                        totalTim: daftarTim.length
+                    },
+                    leaderboard: klasemenTop10
                 }
             });
         } catch (error) {

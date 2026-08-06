@@ -107,9 +107,7 @@ export const adminController = {
                 }
             });
 
-            const leaderboardPerWilayah = {};
-
-            daftarTim.forEach(tim => {
+            const klasemen = daftarTim.map(tim => {
                 let totalWaktu = 0;
                 tim.riwayat.forEach(r => {
                     if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
@@ -118,22 +116,19 @@ export const adminController = {
                     }
                 });
 
-                if (!leaderboardPerWilayah[tim.wilayah]) leaderboardPerWilayah[tim.wilayah] = [];
-                leaderboardPerWilayah[tim.wilayah].push({
+                return {
                     id: tim.id,
                     nama: tim.nama,
                     totalPoin: tim.totalPoin,
                     totalWaktu: totalWaktu,
                     wilayah: tim.wilayah
-                });
+                };
             });
 
-            for (const wilayah in leaderboardPerWilayah) {
-                leaderboardPerWilayah[wilayah].sort((a, b) => {
-                    if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin;
-                    return a.totalWaktu - b.totalWaktu;
-                });
-            }
+            klasemen.sort((a, b) => {
+                if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin;
+                return a.totalWaktu - b.totalWaktu;
+            });
 
             return res.status(200).json({
                 success: true,
@@ -142,7 +137,7 @@ export const adminController = {
                     faseAktif: gameState.faseAktif,
                     sisaWaktuDetik: gameState.sisaWaktu,
                     soalAktif: soalAktif,
-                    leaderboard: leaderboardPerWilayah
+                    leaderboard: klasemen
                 }
             });
         } catch (error) {
@@ -179,12 +174,8 @@ export const adminController = {
 
     eksekusiCutOff: async (req, res) => {
         try {
-            const { kuotaPerWilayah } = req.body;
+            const { kuotaLolos } = req.body;
             const gameState = getGameState();
-
-            if (!kuotaPerWilayah) {
-                return res.status(400).json({ success: false, message: "Masukkan kuota kelulusan per wilayah!" });
-            }
 
             if (!gameState.paketAktifId) {
                 return res.status(400).json({ success: false, message: "Belum ada kualifikasi yang dijalankan." });
@@ -192,16 +183,14 @@ export const adminController = {
 
             const paket = await prisma.paketSoal.findUnique({ where: { id: parseInt(gameState.paketAktifId) } });
             const sesiTarget = paket.sesi;
-            const limit = parseInt(kuotaPerWilayah);
+            const limit = parseInt(kuotaLolos) || 4;
 
             const daftarTim = await prisma.tim.findMany({
                 where: { status: 'kualifikasi', role: 'peserta', sesi: sesiTarget },
                 include: { riwayat: { include: { soal: true } } }
             });
 
-            const groupedTim = {};
-
-            daftarTim.forEach(tim => {
+            const klasemen = daftarTim.map(tim => {
                 let totalWaktu = 0;
                 tim.riwayat.forEach(r => {
                     if (r.isBenar && r.soal.waktuMulai) {
@@ -210,24 +199,16 @@ export const adminController = {
                     }
                 });
 
-                if (!groupedTim[tim.wilayah]) groupedTim[tim.wilayah] = [];
-                groupedTim[tim.wilayah].push({ id: tim.id, nama: tim.nama, totalPoin: tim.totalPoin, totalWaktu });
+                return { id: tim.id, nama: tim.nama, totalPoin: tim.totalPoin, totalWaktu };
             });
 
-            let timLolosTotal = [];
-            let timGugurTotal = [];
+            klasemen.sort((a, b) => {
+                if (a.totalPoin !== b.totalPoin) return b.totalPoin - a.totalPoin;
+                return a.totalWaktu - b.totalWaktu;
+            });
 
-            for (const wilayah in groupedTim) {
-                const klasemenWilayah = groupedTim[wilayah];
-
-                klasemenWilayah.sort((a, b) => {
-                    if (a.totalPoin !== b.totalPoin) return b.totalPoin - a.totalPoin;
-                    return a.totalWaktu - b.totalWaktu;
-                });
-
-                timLolosTotal.push(...klasemenWilayah.slice(0, limit));
-                timGugurTotal.push(...klasemenWilayah.slice(limit));
-            }
+            const timLolosTotal = klasemen.slice(0, limit);
+            const timGugurTotal = klasemen.slice(limit);
 
             await prisma.$transaction(async (tx) => {
                 if (timLolosTotal.length > 0) {
@@ -249,7 +230,7 @@ export const adminController = {
 
             return res.status(200).json({
                 success: true,
-                message: `Cut-off Sesi ${sesiTarget} berhasil dieksekusi per wilayah.`,
+                message: `Cut-off Sesi ${sesiTarget} berhasil dieksekusi. Top ${limit} tim lolos ke babak berikutnya.`,
                 data: { totalLolos: timLolosTotal.length, totalGugur: timGugurTotal.length }
             });
 

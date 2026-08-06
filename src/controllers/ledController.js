@@ -57,13 +57,7 @@ export const ledController = {
                 });
             }
 
-            const leaderboardPerWilayah = {};
-
-            teams.forEach(tim => {
-                if (!leaderboardPerWilayah[tim.wilayah]) {
-                    leaderboardPerWilayah[tim.wilayah] = [];
-                }
-
+            const klasemen = teams.map(tim => {
                 let totalWaktu = 0;
                 tim.riwayat.forEach(r => {
                     if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
@@ -83,22 +77,21 @@ export const ledController = {
                     }
                 }
 
-                leaderboardPerWilayah[tim.wilayah].push({
+                return {
                     id: tim.id,
                     nama: tim.nama,
                     totalPoin: tim.totalPoin,
                     totalWaktu: totalWaktu,
+                    wilayah: tim.wilayah,
                     statusKelulusan: tim.status,
                     statusMenjawab: statusMenjawab
-                });
+                };
             });
 
-            for (const wilayah in leaderboardPerWilayah) {
-                leaderboardPerWilayah[wilayah].sort((a, b) => {
-                    if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin;
-                    return a.totalWaktu - b.totalWaktu;
-                });
-            }
+            klasemen.sort((a, b) => {
+                if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin;
+                return a.totalWaktu - b.totalWaktu;
+            });
 
             return res.status(200).json({
                 success: true,
@@ -108,7 +101,7 @@ export const ledController = {
                     faseAktif: gameState.faseAktif,
                     sisaWaktuDetik: gameState.sisaWaktu,
                     soalAktif: soalAktif,
-                    timBertanding: leaderboardPerWilayah
+                    timBertanding: klasemen
                 }
             });
 
@@ -137,13 +130,8 @@ export const ledController = {
                 }
             }
 
-            const whereClause = {
-                role: 'peserta',
-                sesi: sesiTarget
-            };
-
             const daftarTim = await prisma.tim.findMany({
-                where: whereClause,
+                where: { role: 'peserta', sesi: sesiTarget },
                 select: {
                     id: true,
                     nama: true,
@@ -190,20 +178,11 @@ export const ledController = {
                 ...tim
             }));
 
-            const leaderboardPerWilayah = {};
-            rankedData.forEach(tim => {
-                if (!leaderboardPerWilayah[tim.wilayah]) {
-                    leaderboardPerWilayah[tim.wilayah] = [];
-                }
-                leaderboardPerWilayah[tim.wilayah].push(tim);
-            });
-
             return res.status(200).json({
                 success: true,
                 data: {
                     sesiAktif: sesiTarget,
-                    overall: rankedData,
-                    perWilayah: leaderboardPerWilayah
+                    klasemen: rankedData
                 }
             });
 

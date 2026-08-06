@@ -160,7 +160,7 @@ export const pesertaController = {
             if (!myTim) return res.status(404).json({ success: false, message: "Tim tidak ditemukan" });
 
             const daftarTim = await prisma.tim.findMany({
-                where: { role: 'peserta', sesi: myTim.sesi, wilayah: myTim.wilayah },
+                where: { role: 'peserta', sesi: myTim.sesi },
                 select: {
                     id: true,
                     nama: true,

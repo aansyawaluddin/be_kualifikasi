@@ -54,7 +54,6 @@ export const mulaiKualifikasi = async (io, paketId) => {
             clearInterval(timerInterval);
         }
 
-
         const waktuTarget = Date.now() + (DURASI * 1000);
 
         timerInterval = setInterval(async () => {
@@ -87,13 +86,11 @@ export const mulaiKualifikasi = async (io, paketId) => {
     }
 };
 
-
 export const lanjutSoalBerikutnya = async (io) => {
     if (!paketAktifId) {
         throw new Error("Tidak ada paket soal yang aktif saat ini.");
     }
 
-    // Jika Admin menekan tombol saat waktu masih berjalan (fase 'soal')
     if (faseAktif === 'soal') {
         const paket = await prisma.paketSoal.findUnique({
             where: { id: parseInt(paketAktifId) }
@@ -103,36 +100,18 @@ export const lanjutSoalBerikutnya = async (io) => {
             where: { soalId: soalAktifId }
         });
 
-        // Cek tim dari wilayah mana yang sedang bertanding di soal ini
-        const sampleRiwayat = await prisma.riwayatJawaban.findFirst({
-            where: { soalId: soalAktifId },
-            include: { tim: { select: { wilayah: true } } }
+        const totalPesertaSeharusnya = await prisma.tim.count({
+            where: { role: 'peserta', sesi: paket.sesi }
         });
 
-        let filterTim = {
-            role: 'peserta',
-            sesi: paket.sesi
-        };
-
-        if (sampleRiwayat && sampleRiwayat.tim.wilayah) {
-            filterTim.wilayah = sampleRiwayat.tim.wilayah;
-        }
-
-        const totalPesertaSeharusnya = await prisma.tim.count({ where: filterTim });
-
-        // CEGAT JIKA BELUM SEMUA MENJAWAB
         if (totalJawabanMasuk === 0 || totalJawabanMasuk < totalPesertaSeharusnya) {
             throw new Error(`Waktu masih jalan! Baru ${totalJawabanMasuk} dari ${totalPesertaSeharusnya} tim aktif yang sudah menjawab.`);
         }
 
-        // Jika semua sudah menjawab, bersihkan timer dari soal yang lama agar tidak membocorkan memori
         if (timerInterval) clearInterval(timerInterval);
         console.log(`[GAME] Semua ${totalPesertaSeharusnya} tim telah menjawab. Langsung beralih ke soal berikutnya.`);
     }
 
-    // EKSEKUSI FINAL: 
-    // Apapun kondisinya (baik waktu dipotong karena semua sudah jawab, atau memang waktu sudah habis), 
-    // cukup 1x klik langsung mengocok dan memunculkan soal baru!
     return await mulaiKualifikasi(io, paketAktifId);
 };
 

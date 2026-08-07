@@ -177,7 +177,8 @@ export const ledController = {
 
             const rankedData = timDenganWaktu.map((tim, index) => ({
                 rank: index + 1,
-                ...tim
+                ...tim,
+                totalWaktu: Number((tim.totalWaktu / 1000).toFixed(1))
             }));
 
             return res.status(200).json({

@@ -108,11 +108,11 @@ export const adminController = {
             });
 
             const klasemen = daftarTim.map(tim => {
-                let totalWaktu = 0;
+                let totalWaktuMs = 0;
                 tim.riwayat.forEach(r => {
                     if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
                         const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
-                        totalWaktu += durasi;
+                        totalWaktuMs += durasi;
                     }
                 });
 
@@ -120,7 +120,7 @@ export const adminController = {
                     id: tim.id,
                     nama: tim.nama,
                     totalPoin: tim.totalPoin,
-                    totalWaktu: totalWaktu,
+                    totalWaktu: parseFloat((totalWaktuMs / 1000).toFixed(3)),
                     wilayah: tim.wilayah
                 };
             });

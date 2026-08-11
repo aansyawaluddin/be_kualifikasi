@@ -1,5 +1,6 @@
 import prisma from '../utils/prisma.js';
 import { getGameState } from '../sockets/gameHandler.js';
+import { hitungTotalWaktu, kelompokkanPerWilayah } from '../utils/klasemenHelper.js';
 
 export const ledController = {
     getLiveGameState: async (req, res) => {
@@ -57,14 +58,8 @@ export const ledController = {
                 });
             }
 
-            const klasemen = teams.map(tim => {
-                let totalWaktu = 0;
-                tim.riwayat.forEach(r => {
-                    if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
-                        const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
-                        totalWaktu += durasi;
-                    }
-                });
+            const daftarTimDenganWaktu = teams.map(tim => {
+                const totalWaktu = hitungTotalWaktu(tim);
 
                 const riwayatTim = riwayatSoalAktif.find(r => r.timId === tim.id);
                 let statusMenjawab = 'BELUM';
@@ -88,12 +83,7 @@ export const ledController = {
                 };
             });
 
-            klasemen.sort((a, b) => {
-                if (b.totalPoin !== a.totalPoin) return b.totalPoin - a.totalPoin;
-                return a.totalWaktu - b.totalWaktu;
-            });
-
-            const klasemenTop10 = klasemen.slice(0, 10);
+            const timBertandingPerWilayah = kelompokkanPerWilayah(daftarTimDenganWaktu, 10);
 
             return res.status(200).json({
                 success: true,
@@ -101,9 +91,10 @@ export const ledController = {
                     paketNama: paketNama,
                     sesiAktif: sesiAktif,
                     faseAktif: gameState.faseAktif,
+                    isPaused: gameState.isPaused,
                     sisaWaktuDetik: gameState.sisaWaktu,
                     soalAktif: soalAktif,
-                    timBertanding: klasemenTop10
+                    timBertandingPerWilayah: timBertandingPerWilayah
                 }
             });
 
@@ -150,42 +141,23 @@ export const ledController = {
                 }
             });
 
-            const timDenganWaktu = daftarTim.map(tim => {
-                let totalWaktu = 0;
-
-                tim.riwayat.forEach(r => {
-                    if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
-                        const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
-                        totalWaktu += durasi;
-                    }
-                });
-
+            const daftarTimDenganWaktu = daftarTim.map(tim => {
+                const totalWaktu = hitungTotalWaktu(tim);
                 const { riwayat, ...timData } = tim;
 
                 return {
                     ...timData,
-                    totalWaktu
+                    totalWaktu: Number((totalWaktu / 1000).toFixed(3))
                 };
             });
 
-            timDenganWaktu.sort((a, b) => {
-                if (b.totalPoin !== a.totalPoin) {
-                    return b.totalPoin - a.totalPoin;
-                }
-                return a.totalWaktu - b.totalWaktu;
-            });
-
-            const rankedData = timDenganWaktu.map((tim, index) => ({
-                rank: index + 1,
-                ...tim,
-                totalWaktu: Number((tim.totalWaktu / 1000).toFixed(3))
-            }));
+            const klasemenPerWilayah = kelompokkanPerWilayah(daftarTimDenganWaktu);
 
             return res.status(200).json({
                 success: true,
                 data: {
                     sesiAktif: sesiTarget,
-                    klasemen: rankedData
+                    klasemenPerWilayah: klasemenPerWilayah
                 }
             });
 

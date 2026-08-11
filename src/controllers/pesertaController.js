@@ -1,5 +1,6 @@
 import prisma from '../utils/prisma.js';
 import { getGameState } from '../sockets/gameHandler.js';
+import { hitungTotalWaktu, kelompokkanPerWilayah } from '../utils/klasemenHelper.js';
 
 export const pesertaController = {
 
@@ -81,7 +82,8 @@ export const pesertaController = {
                 },
                 sisaWaktuDetik: gameState.sisaWaktu,
                 sudahMenjawab: !!riwayat,
-                faseAktif: gameState.faseAktif
+                faseAktif: gameState.faseAktif,
+                isPaused: gameState.isPaused
             });
 
         } catch (error) {
@@ -95,6 +97,9 @@ export const pesertaController = {
             const { soalId, jawabanTim } = req.body;
 
             const gameState = getGameState();
+            if (gameState.isPaused) {
+                return res.status(400).json({ success: false, message: "Sesi sedang dipause oleh Admin. Mohon tunggu sampai dilanjutkan." });
+            }
             if (gameState.sisaWaktu <= 0 || gameState.faseAktif !== 'soal') {
                 return res.status(400).json({ success: false, message: "Waktu habis atau soal ditutup." });
             }
@@ -177,39 +182,21 @@ export const pesertaController = {
                 }
             });
 
-            const timDenganWaktu = daftarTim.map(tim => {
-                let totalWaktu = 0;
-                tim.riwayat.forEach(r => {
-                    if (r.soal && r.soal.waktuMulai && r.waktuMenjawab) {
-                        const durasi = new Date(r.waktuMenjawab).getTime() - new Date(r.soal.waktuMulai).getTime();
-                        totalWaktu += durasi;
-                    }
-                });
-
+            const daftarTimDenganWaktu = daftarTim.map(tim => {
+                const totalWaktu = hitungTotalWaktu(tim);
                 const { riwayat, ...timData } = tim;
                 return { ...timData, totalWaktu };
             });
 
-            timDenganWaktu.sort((a, b) => {
-                if (b.totalPoin !== a.totalPoin) {
-                    return b.totalPoin - a.totalPoin;
-                }
-                return a.totalWaktu - b.totalWaktu;
-            });
-
-            const rankedData = timDenganWaktu.map((tim, index) => ({
-                rank: index + 1,
-                ...tim
-            }));
-
-            const timSaya = rankedData.find(t => t.id === timId);
-            const timLainnya = rankedData.filter(t => t.id !== timId);
-
-            const finalLeaderboard = [timSaya, ...timLainnya];
+            const klasemenPerWilayah = kelompokkanPerWilayah(daftarTimDenganWaktu);
 
             return res.status(200).json({
                 success: true,
-                data: finalLeaderboard
+                data: {
+                    timSayaId: timId,
+                    wilayahSaya: myTim.wilayah,
+                    klasemenPerWilayah
+                }
             });
 
         } catch (error) {

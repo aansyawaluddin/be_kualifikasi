@@ -5,12 +5,43 @@ let sisaWaktu = 0;
 let soalAktifId = null;
 let paketAktifId = null;
 let faseAktif = 'idle';
+let isPaused = false;
+let waktuTarget = null;
+
+const jalankanTimer = (io) => {
+    if (timerInterval) clearInterval(timerInterval);
+
+    waktuTarget = Date.now() + (sisaWaktu * 1000);
+
+    timerInterval = setInterval(async () => {
+        const waktuSekarang = Date.now();
+        sisaWaktu = Math.max(0, Math.round((waktuTarget - waktuSekarang) / 1000));
+
+        io.emit('timer_update', { sisaWaktu });
+
+        if (sisaWaktu <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+
+            await prisma.soal.update({
+                where: { id: soalAktifId },
+                data: { status: 'selesai' }
+            });
+
+            faseAktif = 'menunggu';
+
+            io.emit('waktu_habis', { soalId: soalAktifId, faseAktif });
+            console.log(`[GAME] Waktu Habis (Soal ID: ${soalAktifId}). Menunggu Admin klik Selanjutnya...`);
+        }
+    }, 1000);
+};
 
 export const mulaiKualifikasi = async (io, paketId) => {
     try {
         const DURASI = parseInt(process.env.DURASI_SOAL) || 180;
 
         paketAktifId = paketId;
+        isPaused = false;
 
         await prisma.soal.updateMany({
             where: { status: 'aktif', paketSoalId: parseInt(paketId) },
@@ -50,33 +81,7 @@ export const mulaiKualifikasi = async (io, paketId) => {
         io.emit('game_mulai', { soalId: soalAktifId, sisaWaktu, faseAktif });
         console.log(`[GAME] Menjalankan Soal Acak ID: ${soalAktifId} | Sisa Soal: ${semuaSoalBelum.length} | Durasi: ${DURASI} detik`);
 
-        if (timerInterval) {
-            clearInterval(timerInterval);
-        }
-
-        const waktuTarget = Date.now() + (DURASI * 1000);
-
-        timerInterval = setInterval(async () => {
-            const waktuSekarang = Date.now();
-
-            sisaWaktu = Math.max(0, Math.round((waktuTarget - waktuSekarang) / 1000));
-
-            io.emit('timer_update', { sisaWaktu });
-
-            if (sisaWaktu <= 0) {
-                clearInterval(timerInterval);
-
-                await prisma.soal.update({
-                    where: { id: soalAktifId },
-                    data: { status: 'selesai' }
-                });
-
-                faseAktif = 'menunggu';
-
-                io.emit('waktu_habis', { soalId: soalAktifId, faseAktif });
-                console.log(`[GAME] Waktu Habis (Soal ID: ${soalAktifId}). Menunggu Admin klik Selanjutnya...`);
-            }
-        }, 1000);
+        jalankanTimer(io);
 
         return soalAktif;
 
@@ -86,9 +91,52 @@ export const mulaiKualifikasi = async (io, paketId) => {
     }
 };
 
+export const pauseKualifikasi = (io) => {
+    if (faseAktif !== 'soal') {
+        throw new Error("Tidak ada soal yang sedang berjalan untuk dipause.");
+    }
+    if (isPaused) {
+        throw new Error("Sesi sudah dalam kondisi pause.");
+    }
+
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+
+    isPaused = true;
+    console.log(`[GAME] Sesi dipause pada sisa waktu ${sisaWaktu} detik (Soal ID: ${soalAktifId}).`);
+
+    io.emit('sesi_dipause', { soalId: soalAktifId, sisaWaktu, isPaused: true });
+
+    return { sisaWaktu, soalAktifId, faseAktif };
+};
+
+export const resumeKualifikasi = (io) => {
+    if (!isPaused) {
+        throw new Error("Sesi tidak sedang dalam kondisi pause.");
+    }
+    if (sisaWaktu <= 0) {
+        throw new Error("Waktu sudah habis, tidak bisa dilanjutkan. Gunakan 'Soal Berikutnya'.");
+    }
+
+    isPaused = false;
+    console.log(`[GAME] Sesi dilanjutkan dari sisa waktu ${sisaWaktu} detik (Soal ID: ${soalAktifId}).`);
+
+    io.emit('sesi_dilanjutkan', { soalId: soalAktifId, sisaWaktu, isPaused: false });
+
+    jalankanTimer(io);
+
+    return { sisaWaktu, soalAktifId, faseAktif };
+};
+
 export const lanjutSoalBerikutnya = async (io) => {
     if (!paketAktifId) {
         throw new Error("Tidak ada paket soal yang aktif saat ini.");
+    }
+
+    if (isPaused) {
+        throw new Error("Sesi sedang dipause. Lanjutkan (resume) dulu sebelum pindah ke soal berikutnya.");
     }
 
     if (faseAktif === 'soal') {
@@ -120,7 +168,8 @@ export const getGameState = () => {
         sisaWaktu,
         soalAktifId,
         paketAktifId,
-        faseAktif
+        faseAktif,
+        isPaused
     };
 };
 
@@ -143,4 +192,5 @@ export const resetGameState = () => {
     soalAktifId = null;
     paketAktifId = null;
     faseAktif = 'idle';
+    isPaused = false;
 };

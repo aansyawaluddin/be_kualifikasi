@@ -51,6 +51,7 @@ export const pesertaController = {
                         gambar: true,
                         opsiJawaban: true,
                         waktuMulai: true,
+                        isUjiCoba: true,
                         paketSoal: true
                     }
                 });
@@ -78,7 +79,8 @@ export const pesertaController = {
                     pertanyaan: soalAktif.pertanyaan,
                     gambar: soalAktif.gambar,
                     opsiJawaban: soalAktif.opsiJawaban,
-                    waktuMulai: soalAktif.waktuMulai
+                    waktuMulai: soalAktif.waktuMulai,
+                    isUjiCoba: soalAktif.isUjiCoba
                 },
                 sisaWaktuDetik: gameState.sisaWaktu,
                 sudahMenjawab: !!riwayat,
@@ -187,7 +189,7 @@ export const pesertaController = {
                 const { riwayat, ...timData } = tim;
                 return { ...timData, totalWaktu };
             });
-
+            
             const klasemenPerWilayah = kelompokkanPerWilayah(daftarTimDenganWaktu);
 
             return res.status(200).json({

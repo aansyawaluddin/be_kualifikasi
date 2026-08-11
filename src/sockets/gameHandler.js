@@ -50,7 +50,7 @@ export const mulaiKualifikasi = async (io, paketId) => {
 
         const semuaSoalBelum = await prisma.soal.findMany({
             where: { paketSoalId: parseInt(paketId), status: 'belum' },
-            select: { id: true }
+            select: { id: true, isUjiCoba: true }
         });
 
         if (semuaSoalBelum.length === 0) {
@@ -66,8 +66,39 @@ export const mulaiKualifikasi = async (io, paketId) => {
             return null;
         }
 
-        const randomIndex = Math.floor(Math.random() * semuaSoalBelum.length);
-        const soalTerpilih = semuaSoalBelum[randomIndex];
+        const soalUjiCoba = semuaSoalBelum.filter(s => s.isUjiCoba);
+        const soalReal = semuaSoalBelum.filter(s => !s.isUjiCoba);
+
+        const poolSoal = soalUjiCoba.length > 0 ? soalUjiCoba : soalReal;
+
+        if (soalUjiCoba.length === 0 && soalReal.length > 0) {
+            const paket = await prisma.paketSoal.findUnique({ where: { id: parseInt(paketId) } });
+
+            const sudahAdaSoalRealAktif = await prisma.soal.count({
+                where: {
+                    paketSoalId: parseInt(paketId),
+                    isUjiCoba: false,
+                    status: { in: ['aktif', 'selesai'] }
+                }
+            });
+
+            if (sudahAdaSoalRealAktif === 0) {
+                await prisma.tim.updateMany({
+                    where: { sesi: paket.sesi, role: 'peserta' },
+                    data: { totalPoin: 0 }
+                });
+
+                io.emit('poin_direset', {
+                    sesi: paket.sesi,
+                    message: "Soal uji coba selesai! Poin seluruh tim direset ke 0, memasuki soal sesungguhnya."
+                });
+
+                console.log(`[GAME] Soal uji coba selesai untuk Paket ${paketId}. Poin seluruh tim di Sesi ${paket.sesi} direset ke 0.`);
+            }
+        }
+
+        const randomIndex = Math.floor(Math.random() * poolSoal.length);
+        const soalTerpilih = poolSoal[randomIndex];
 
         const soalAktif = await prisma.soal.update({
             where: { id: soalTerpilih.id },
@@ -78,8 +109,8 @@ export const mulaiKualifikasi = async (io, paketId) => {
         sisaWaktu = DURASI;
         faseAktif = 'soal';
 
-        io.emit('game_mulai', { soalId: soalAktifId, sisaWaktu, faseAktif });
-        console.log(`[GAME] Menjalankan Soal Acak ID: ${soalAktifId} | Sisa Soal: ${semuaSoalBelum.length} | Durasi: ${DURASI} detik`);
+        io.emit('game_mulai', { soalId: soalAktifId, sisaWaktu, faseAktif, isUjiCoba: soalAktif.isUjiCoba });
+        console.log(`[GAME] Menjalankan Soal ${soalAktif.isUjiCoba ? 'Uji Coba' : 'Beneran'} ID: ${soalAktifId} | Sisa Soal: ${semuaSoalBelum.length} | Durasi: ${DURASI} detik`);
 
         jalankanTimer(io);
 

@@ -31,7 +31,8 @@ export const adminController = {
                 select: {
                     id: true,
                     pertanyaan: true,
-                    tipe: true
+                    tipe: true,
+                    isUjiCoba: true
                 }
             });
             return res.status(200).json({ success: true, data: soal });

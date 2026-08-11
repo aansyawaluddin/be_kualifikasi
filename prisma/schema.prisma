@@ -72,6 +72,8 @@ model Soal {
   opsiJawaban  Json?      
   jawabanBenar String     @db.Text
   
+  isUjiCoba    Boolean    @default(false)
+  
   status       StatusSoal @default(belum)
   waktuMulai   DateTime?  
   

@@ -13,12 +13,11 @@ const p = (paket, kat, tanya, opsi, jwb) => ({
 });
 
 async function main() {
-    console.log('📚 Memulai seeding 3 Paket Sesi dan 90 Soal Kualifikasi Tahun 2026...');
+    console.log('📚 Memulai seeding 2 Paket Sesi dan Soal Kualifikasi Tahun 2026...');
 
     const paketData = [
         { id: 1, nama: 'Sesi 1 Kualifikasi', sesi: 1 },
         { id: 2, nama: 'Sesi 2 Kualifikasi', sesi: 2 },
-        { id: 3, nama: 'Sesi 3 Kualifikasi', sesi: 3 },
     ];
 
     for (const pkt of paketData) {
@@ -160,22 +159,36 @@ async function main() {
     const soalSesi2 = soalSesi2Data.map(s => p(2, s.kat, s.tanya, s.opsi, s.jwb));
 
     // ==========================================
-    // DATA SOAL SESI 3 (Cross-Slice Campuran)
+    // SOAL UJI COBA (3 soal per sesi, sebelum soal beneran)
     // ==========================================
-    // Skrip di bawah ini melakukan looping untuk menghasilkan 30 soal campuran
-    // dengan pola selang-seling genap-ganjil antara array sesi 1 dan sesi 2.
-    // Hal ini menjamin bahwa bobot kategori per sub-test 100% identik dengan sesi aslinya.
-    const soalSesi3 = [];
-    for (let i = 0; i < 30; i++) {
-        if (i % 2 === 0) {
-            soalSesi3.push({ ...soalSesi1[i], paketSoalId: 3 });
-        } else {
-            soalSesi3.push({ ...soalSesi2[i], paketSoalId: 3 });
-        }
-    }
+    // Dipakai buat pemanasan peserta di awal sesi. Poin selama soal uji coba
+    // tetap dihitung & tampil di klasemen seperti biasa; begitu soal uji coba
+    // habis dan masuk soal beneran yang pertama, backend otomatis reset poin
+    // seluruh tim ke 0 (lihat gameHandler.js -> mulaiKualifikasi).
+    const soalUjiCobaData = [
+        { tanya: 'Berapakah hasil dari 2 + 2?', opsi: ['A. 3', 'B. 4', 'C. 5', 'D. 6', 'E. 7'], jwb: 'B' },
+        { tanya: 'Apa ibu kota negara Indonesia?', opsi: ['A. Bandung', 'B. Surabaya', 'C. Jakarta', 'D. Medan', 'E. Makassar'], jwb: 'C' },
+        { tanya: 'Manakah dari pilihan berikut yang merupakan bilangan genap?', opsi: ['A. 7', 'B. 9', 'C. 11', 'D. 8', 'E. 13'], jwb: 'D' }
+    ];
 
-    // Gabungkan keseluruhan soal
-    const soalKualifikasi = [...soalSesi1, ...soalSesi2, ...soalSesi3];
+    const buatSoalUjiCoba = (paketId) => soalUjiCobaData.map(s => ({
+        paketSoalId: paketId,
+        kategori: 'penalaran_umum',
+        tipe: 'pilihan_ganda',
+        pertanyaan: s.tanya,
+        opsiJawaban: JSON.stringify(s.opsi),
+        jawabanBenar: s.jwb,
+        isUjiCoba: true
+    }));
+
+    const soalUjiCobaSesi1 = buatSoalUjiCoba(1);
+    const soalUjiCobaSesi2 = buatSoalUjiCoba(2);
+
+    // Gabungkan keseluruhan soal (uji coba lebih dulu, baru soal beneran per sesi)
+    const soalKualifikasi = [
+        ...soalUjiCobaSesi1, ...soalSesi1,
+        ...soalUjiCobaSesi2, ...soalSesi2
+    ];
 
     // Bersihkan data lama demi menghindari duplikasi
     await prisma.riwayatJawaban.deleteMany({});
@@ -186,7 +199,7 @@ async function main() {
         data: soalKualifikasi
     });
 
-    console.log(`✅ Seeding berhasil! Tepat 30 Soal per Sesi telah disiapkan (Total 90 Soal).`);
+    console.log(`✅ Seeding berhasil! 3 Soal Uji Coba + 30 Soal Beneran per Sesi telah disiapkan (Total ${soalKualifikasi.length} Soal).`);
 }
 
 main()

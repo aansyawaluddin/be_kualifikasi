@@ -27,7 +27,8 @@ export const ledController = {
                         id: true,
                         gambar: true,
                         pertanyaan: true,
-                        opsiJawaban: true
+                        opsiJawaban: true,
+                        isUjiCoba: true
                     }
                 });
             }

@@ -127,17 +127,16 @@ export const pesertaController = {
             let poinDidapat = 0;
 
             if (isBenar) {
-                const urutanBenarSesi = await prisma.riwayatJawaban.count({
+                const urutanBenarWilayah = await prisma.riwayatJawaban.count({
                     where: {
                         soalId: soal.id,
                         isBenar: true,
-                        tim: { sesi: tim.sesi }
+                        tim: { sesi: tim.sesi, wilayah: tim.wilayah }
                     }
                 });
 
                 const poinPeringkat = [20, 15, 10, 5];
-
-                poinDidapat = poinPeringkat[urutanBenarSesi] !== undefined ? poinPeringkat[urutanBenarSesi] : 2;
+                poinDidapat = poinPeringkat[urutanBenarWilayah] !== undefined ? poinPeringkat[urutanBenarWilayah] : 0;
             }
 
             await prisma.$transaction(async (tx) => {
@@ -189,7 +188,7 @@ export const pesertaController = {
                 const { riwayat, ...timData } = tim;
                 return { ...timData, totalWaktu };
             });
-            
+
             const klasemenPerWilayah = kelompokkanPerWilayah(daftarTimDenganWaktu);
 
             return res.status(200).json({

@@ -1,6 +1,7 @@
 import prisma from '../utils/prisma.js';
 import {
-    mulaiKualifikasi,
+    mulaiTahap,
+    selesaiUjiCoba as selesaiUjiCobaGame,
     lanjutSoalBerikutnya,
     getGameState,
     resetGameState,
@@ -41,7 +42,76 @@ export const adminController = {
         }
     },
 
-    startKualifikasi: async (req, res) => {
+    // Card 1: "Uji Coba" -> tombol Mulai
+    startUjiCoba: async (req, res) => {
+        try {
+            const { paketId } = req.params;
+
+            const paket = await prisma.paketSoal.findUnique({
+                where: { id: parseInt(paketId) }
+            });
+
+            if (!paket) {
+                return res.status(404).json({ success: false, message: "Paket soal tidak ditemukan!" });
+            }
+            if (paket.status === 'selesai') {
+                return res.status(403).json({
+                    success: false,
+                    message: "Akses Ditolak! Sesi ini sudah selesai dan tidak bisa dimulai ulang."
+                });
+            }
+            if (paket.statusUjiCoba === 'selesai') {
+                return res.status(403).json({
+                    success: false,
+                    message: "Uji coba untuk paket ini sudah ditutup. Lanjut ke Soal Real."
+                });
+            }
+
+            const totalSoalUjiCoba = await prisma.soal.count({
+                where: { paketSoalId: parseInt(paketId), isUjiCoba: true }
+            });
+            if (totalSoalUjiCoba === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Paket ini tidak memiliki soal uji coba. Langsung mulai Soal Real."
+                });
+            }
+
+            const io = req.app.get('io');
+            await mulaiTahap(io, paketId, 'uji_coba');
+
+            await prisma.paketSoal.update({
+                where: { id: parseInt(paketId) },
+                data: { status: 'berjalan', statusUjiCoba: 'berjalan' }
+            });
+
+            return res.status(200).json({ success: true, message: "Sesi Uji Coba dimulai!" });
+        } catch (error) {
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    // Card 1: tombol "Selesai" -> baru bisa kalau semua soal uji coba sudah kepake.
+    // Semua client (peserta, LED, admin) diarahkan balik ke halaman awal via socket 'uji_coba_selesai'.
+    selesaiUjiCoba: async (req, res) => {
+        try {
+            const { paketId } = req.params;
+            const io = req.app.get('io');
+
+            await selesaiUjiCobaGame(io, paketId);
+
+            return res.status(200).json({
+                success: true,
+                message: "Sesi Uji Coba selesai! Poin direset, semua diarahkan ke halaman awal."
+            });
+        } catch (error) {
+            return res.status(400).json({ success: false, message: error.message });
+        }
+    },
+
+    // Card 2: "Soal Real" -> tombol Mulai. Ditolak kalau paket punya soal uji coba
+    // tapi belum diselesaikan lewat tombol Selesai di atas.
+    startSoalReal: async (req, res) => {
         try {
             const { paketId } = req.params;
 
@@ -59,15 +129,25 @@ export const adminController = {
                 });
             }
 
+            const totalSoalUjiCoba = await prisma.soal.count({
+                where: { paketSoalId: parseInt(paketId), isUjiCoba: true }
+            });
+            if (totalSoalUjiCoba > 0 && paket.statusUjiCoba !== 'selesai') {
+                return res.status(403).json({
+                    success: false,
+                    message: "Sesi Uji Coba belum diselesaikan admin. Klik 'Selesai' di card Uji Coba dulu."
+                });
+            }
+
             const io = req.app.get('io');
-            await mulaiKualifikasi(io, paketId);
+            await mulaiTahap(io, paketId, 'soal_real');
 
             await prisma.paketSoal.update({
                 where: { id: parseInt(paketId) },
                 data: { status: 'berjalan' }
             });
 
-            return res.status(200).json({ success: true, message: "Babak Kualifikasi Dimulai!" });
+            return res.status(200).json({ success: true, message: "Soal Real dimulai!" });
         } catch (error) {
             return res.status(500).json({ success: false, error: error.message });
         }
@@ -109,10 +189,14 @@ export const adminController = {
             const gameState = getGameState();
             let soalAktif = null;
             let sesiAktif = 1;
+            let statusUjiCoba = null;
 
             if (gameState.paketAktifId) {
                 const paket = await prisma.paketSoal.findUnique({ where: { id: parseInt(gameState.paketAktifId) } });
-                if (paket) sesiAktif = paket.sesi;
+                if (paket) {
+                    sesiAktif = paket.sesi;
+                    statusUjiCoba = paket.statusUjiCoba;
+                }
             }
 
             if (gameState.soalAktifId) {
@@ -157,6 +241,8 @@ export const adminController = {
                 success: true,
                 data: {
                     sesiAktif: sesiAktif,
+                    tahapAktif: gameState.tahapAktif,
+                    statusUjiCoba: statusUjiCoba,
                     faseAktif: gameState.faseAktif,
                     isPaused: gameState.isPaused,
                     sisaWaktuDetik: gameState.sisaWaktu,
@@ -353,7 +439,7 @@ export const adminController = {
 
                 await tx.paketSoal.update({
                     where: { id: parseInt(paketId) },
-                    data: { status: 'belum_mulai' }
+                    data: { status: 'belum_mulai', statusUjiCoba: 'belum' }
                 });
             });
 

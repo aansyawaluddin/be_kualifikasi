@@ -92,6 +92,7 @@ export const ledController = {
                     paketNama: paketNama,
                     sesiAktif: sesiAktif,
                     faseAktif: gameState.faseAktif,
+                    tahapAktif: gameState.tahapAktif,
                     isPaused: gameState.isPaused,
                     sisaWaktuDetik: gameState.sisaWaktu,
                     soalAktif: soalAktif,

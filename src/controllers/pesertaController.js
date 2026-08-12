@@ -62,7 +62,8 @@ export const pesertaController = {
                     success: true,
                     message: "Belum ada soal dimulai untuk sesi Anda.",
                     data: null,
-                    faseAktif: gameState.faseAktif
+                    faseAktif: gameState.faseAktif,
+                    tahapAktif: gameState.tahapAktif
                 });
             }
 
@@ -85,6 +86,7 @@ export const pesertaController = {
                 sisaWaktuDetik: gameState.sisaWaktu,
                 sudahMenjawab: !!riwayat,
                 faseAktif: gameState.faseAktif,
+                tahapAktif: gameState.tahapAktif,
                 isPaused: gameState.isPaused
             });
 

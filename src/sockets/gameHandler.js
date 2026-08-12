@@ -7,6 +7,7 @@ let paketAktifId = null;
 let faseAktif = 'idle';
 let isPaused = false;
 let waktuTarget = null;
+let tahapAktif = null; 
 
 const jalankanTimer = (io) => {
     if (timerInterval) clearInterval(timerInterval);
@@ -36,11 +37,21 @@ const jalankanTimer = (io) => {
     }, 1000);
 };
 
-export const mulaiKualifikasi = async (io, paketId) => {
+/**
+ * Menjalankan satu soal berikutnya dari SATU tahap saja (uji_coba ATAU soal_real).
+ * Tidak ada lagi auto-lompat antar tahap — kalau pool soal tahap ini habis,
+ * game berhenti dan menunggu aksi admin (Selesai Uji Coba / Cut-off).
+ */
+export const mulaiTahap = async (io, paketId, tahap) => {
     try {
+        if (tahap !== 'uji_coba' && tahap !== 'soal_real') {
+            throw new Error("Tahap tidak valid. Gunakan 'uji_coba' atau 'soal_real'.");
+        }
+
         const DURASI = parseInt(process.env.DURASI_SOAL) || 180;
 
         paketAktifId = paketId;
+        tahapAktif = tahap;
         isPaused = false;
 
         await prisma.soal.updateMany({
@@ -48,53 +59,29 @@ export const mulaiKualifikasi = async (io, paketId) => {
             data: { status: 'selesai' }
         });
 
-        const semuaSoalBelum = await prisma.soal.findMany({
-            where: { paketSoalId: parseInt(paketId), status: 'belum' },
+        const poolSoal = await prisma.soal.findMany({
+            where: {
+                paketSoalId: parseInt(paketId),
+                status: 'belum',
+                isUjiCoba: tahap === 'uji_coba'
+            },
             select: { id: true, isUjiCoba: true }
         });
 
-        if (semuaSoalBelum.length === 0) {
-            console.log(`[GAME] Paket Kualifikasi ID ${paketId} Selesai.`);
+        if (poolSoal.length === 0) {
+            console.log(`[GAME] Soal tahap '${tahap}' pada Paket ID ${paketId} sudah habis.`);
             faseAktif = 'selesai';
 
             soalAktifId = null;
             sisaWaktu = 0;
 
             io.emit('kualifikasi_selesai', {
-                message: "Seluruh soal pada sesi ini telah selesai! Menunggu proses Cut-off dari Admin."
+                tahap,
+                message: tahap === 'uji_coba'
+                    ? "Seluruh soal uji coba telah dijawab! Admin bisa menutup sesi uji coba (Selesai)."
+                    : "Seluruh soal telah selesai! Menunggu proses Cut-off dari Admin."
             });
             return null;
-        }
-
-        const soalUjiCoba = semuaSoalBelum.filter(s => s.isUjiCoba);
-        const soalReal = semuaSoalBelum.filter(s => !s.isUjiCoba);
-
-        const poolSoal = soalUjiCoba.length > 0 ? soalUjiCoba : soalReal;
-
-        if (soalUjiCoba.length === 0 && soalReal.length > 0) {
-            const paket = await prisma.paketSoal.findUnique({ where: { id: parseInt(paketId) } });
-
-            const sudahAdaSoalRealAktif = await prisma.soal.count({
-                where: {
-                    paketSoalId: parseInt(paketId),
-                    isUjiCoba: false,
-                    status: { in: ['aktif', 'selesai'] }
-                }
-            });
-
-            if (sudahAdaSoalRealAktif === 0) {
-                await prisma.tim.updateMany({
-                    where: { sesi: paket.sesi, role: 'peserta' },
-                    data: { totalPoin: 0 }
-                });
-
-                io.emit('poin_direset', {
-                    sesi: paket.sesi,
-                    message: "Soal uji coba selesai! Poin seluruh tim direset ke 0, memasuki soal sesungguhnya."
-                });
-
-                console.log(`[GAME] Soal uji coba selesai untuk Paket ${paketId}. Poin seluruh tim di Sesi ${paket.sesi} direset ke 0.`);
-            }
         }
 
         const randomIndex = Math.floor(Math.random() * poolSoal.length);
@@ -109,8 +96,8 @@ export const mulaiKualifikasi = async (io, paketId) => {
         sisaWaktu = DURASI;
         faseAktif = 'soal';
 
-        io.emit('game_mulai', { soalId: soalAktifId, sisaWaktu, faseAktif, isUjiCoba: soalAktif.isUjiCoba });
-        console.log(`[GAME] Menjalankan Soal ${soalAktif.isUjiCoba ? 'Uji Coba' : 'Beneran'} ID: ${soalAktifId} | Sisa Soal: ${semuaSoalBelum.length} | Durasi: ${DURASI} detik`);
+        io.emit('game_mulai', { soalId: soalAktifId, sisaWaktu, faseAktif, isUjiCoba: soalAktif.isUjiCoba, tahap });
+        console.log(`[GAME] Menjalankan Soal (${tahap}) ID: ${soalAktifId} | Sisa Soal: ${poolSoal.length} | Durasi: ${DURASI} detik`);
 
         jalankanTimer(io);
 
@@ -118,8 +105,51 @@ export const mulaiKualifikasi = async (io, paketId) => {
 
     } catch (error) {
         console.error("[ERROR SIKLUS GAME]:", error);
-        return null;
+        throw error;
     }
+};
+
+/**
+ * Menutup tahap Uji Coba: wajib semua soal isUjiCoba=true sudah 'selesai'.
+ * Reset poin seluruh tim di sesi ini ke 0, reset game state, lalu suruh
+ * SEMUA client (peserta, LED, admin) balik ke halaman awal.
+ */
+export const selesaiUjiCoba = async (io, paketId) => {
+    const paket = await prisma.paketSoal.findUnique({ where: { id: parseInt(paketId) } });
+    if (!paket) {
+        throw new Error("Paket soal tidak ditemukan!");
+    }
+
+    const sisaSoalUjiCoba = await prisma.soal.count({
+        where: {
+            paketSoalId: parseInt(paketId),
+            isUjiCoba: true,
+            status: { not: 'selesai' }
+        }
+    });
+
+    if (sisaSoalUjiCoba > 0) {
+        throw new Error(`Masih ada ${sisaSoalUjiCoba} soal uji coba yang belum selesai dijawab.`);
+    }
+
+    await prisma.tim.updateMany({
+        where: { sesi: paket.sesi, role: 'peserta' },
+        data: { totalPoin: 0 }
+    });
+
+    await prisma.paketSoal.update({
+        where: { id: parseInt(paketId) },
+        data: { statusUjiCoba: 'selesai' }
+    });
+
+    resetGameState();
+
+    io.emit('uji_coba_selesai', {
+        paketId: parseInt(paketId),
+        message: "Sesi Uji Coba telah selesai! Poin direset ke 0. Semua diarahkan ke halaman awal."
+    });
+
+    console.log(`[GAME] Uji Coba Paket ${paketId} ditutup oleh Admin. Poin Sesi ${paket.sesi} direset ke 0.`);
 };
 
 export const pauseKualifikasi = (io) => {
@@ -162,8 +192,8 @@ export const resumeKualifikasi = (io) => {
 };
 
 export const lanjutSoalBerikutnya = async (io) => {
-    if (!paketAktifId) {
-        throw new Error("Tidak ada paket soal yang aktif saat ini.");
+    if (!paketAktifId || !tahapAktif) {
+        throw new Error("Tidak ada sesi (uji coba/soal real) yang sedang berjalan saat ini.");
     }
 
     if (isPaused) {
@@ -191,7 +221,7 @@ export const lanjutSoalBerikutnya = async (io) => {
         console.log(`[GAME] Semua ${totalPesertaSeharusnya} tim telah menjawab. Langsung beralih ke soal berikutnya.`);
     }
 
-    return await mulaiKualifikasi(io, paketAktifId);
+    return await mulaiTahap(io, paketAktifId, tahapAktif);
 };
 
 export const getGameState = () => {
@@ -200,7 +230,8 @@ export const getGameState = () => {
         soalAktifId,
         paketAktifId,
         faseAktif,
-        isPaused
+        isPaused,
+        tahapAktif
     };
 };
 
@@ -224,4 +255,5 @@ export const resetGameState = () => {
     paketAktifId = null;
     faseAktif = 'idle';
     isPaused = false;
+    tahapAktif = null;
 };
